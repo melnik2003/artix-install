@@ -108,7 +108,7 @@ partition_disk() {
     local swap="${3:-0}"
 
     check_names
-    check_free_space
+    #check_free_space
 
     pvcreate "$disk_name"
 
@@ -153,21 +153,22 @@ configure_network() {
     
     rfkill unblock all
     ip link set "$interface" up
-    cat << EOF | sudo tee "$config" > /dev/null
-ctrl_interface=/run/wpa_supplicant
-update_config=1
 
-network={
-    ssid="$ssid"
-    psk="$password"
-}
-EOF
+    {
+        echo -e "ctrl_interface=/run/wpa_supplicant"; 
+        echo -e "update_config=1"; 
+        echo -e ""; 
+        echo -e "network={"; 
+        echo -e "\tssid=$ssid"; 
+        echo -e "\tpsk=$password"; 
+        echo -e "}"; 
+    } >> "$config"
 
     rc-service wpa_supplicant restart
     dhclient wlan0
 }
 
-configure_users() {
+configure_user() {
     local username="$1"
 
     passwd
@@ -183,9 +184,11 @@ configure_host() {
     touch /etc/hostname
     echo "$hostname" > /etc/hostname
 
-    echo -e "127.0.0.1\tlocalhost" > /etc/hosts
-    echo -e "::1\t\t\tlocalhost" >> /etc/hosts
-    echo -e "127.0.1.1\t$hostname.localdomain\t$hostname" >> /etc/hosts
+    {
+        echo -e "127.0.0.1\tlocalhost"; 
+        echo -e "::1\t\t\tlocalhost"; 
+        echo -e "127.0.1.1\t$hostname.localdomain\t$hostname";  
+    } >> /etc/hosts
 }
 # ------------------------------------------------------------------
 
@@ -198,14 +201,26 @@ fi
 
 main_option=""
 
-while getopts ":i:vhp:" option
+while getopts ":vhp:m:n:u:H:" option
 do
 	case "$option" in
 		"v")
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+
 			echo "Version $VERSION"
 			exit 0;
 		;;
 		"h")
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+
 			echo "$USAGE"
 			exit 0;
 		;;
@@ -230,6 +245,60 @@ do
                 show_logs 1 "mainOpt"
             fi
 		;;
+        "m")
+            arg1="$OPTARG"
+
+            shift $((OPTIND - 1))
+            if [[ $1 == -* ]]; then
+                show_logs 1 "Option -p requires 3 arguments"
+            fi
+            arg2="$1"
+
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+        ;;
+        "n")
+            arg1="$OPTARG"
+
+            shift $((OPTIND - 1))
+            if [[ $1 == -* ]]; then
+                show_logs 1 "Option -p requires 3 arguments"
+            fi
+            arg2="$1"
+
+            shift $((OPTIND - 1))
+            if [[ $2 == -* ]]; then
+                show_logs 1 "Option -p requires 3 arguments"
+            fi
+            arg3="$2"
+
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+        ;;
+        "u")
+            arg1="$OPTARG"
+            
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+        ;;
+        "H")
+            arg1="$OPTARG"
+            
+            if [ "$main_option" == "" ]; then
+                main_option="$option"
+            else
+                show_logs 1 "mainOpt"
+            fi
+        ;;
 		"?")
 			echo "Unknown option $OPTARG"
 			exit 0;
@@ -260,15 +329,25 @@ touch "$LOCK_FILE"
 # ------------------------------------------------------------------
 
 # --- Body ---------------------------------------------------------
+if [[ $EUID -ne 0 ]]; then
+    show_logs 1 "root"
+fi
 
 case "$main_option" in
     "p")
-        if [[ $EUID -ne 0 ]]; then
-            show_logs 1 "root"
-        fi
-
         partition_disk "$arg1" "$arg2" "$arg3"
+    ;;
+    "m")
         mount_parts "$arg1" "$arg2"
+    ;;
+    "n")
+        configure_network "$arg1" "$arg2" "$arg3"
+    ;;
+    "u")
+        configure_user "$arg1"
+    ;;
+    "H")
+        configure_host "$arg1"
     ;;
 esac
 # ------------------------------------------------------------------
