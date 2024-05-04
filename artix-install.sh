@@ -16,11 +16,11 @@ LOGGING_LEVEL=4
 
 # --- Utils --------------------------------------------------------
 show_help() {
-    echo "Usage: . ./$0.sh [-h] [-v]"
-    echo ""
-    echo "Options:"
-    echo "-h                Напечатать эту справку"
-    echo "-v                Напечатать версию программы"
+    echo -e "Usage: . ./$0.sh [-h] [-v]"
+    echo -e ""
+    echo -e "Options:"
+    echo -e "-h\t\t\tPrint this help"
+    echo -e "-v\t\t\tPrint script version"
 }
 
 check_error() {
@@ -133,8 +133,7 @@ partition_disk() {
 }
 
 mount_parts() {
-    local disk_name="$1"
-    local group_name="$2"
+    local group_name="$1"
 
     mount /dev/"$group_name"/root /mnt
 
@@ -249,12 +248,6 @@ do
         "m")
             arg1="$OPTARG"
 
-            shift $((OPTIND - 1))
-            if [[ $1 == -* ]]; then
-                show_logs 1 "Option -p requires 3 arguments"
-            fi
-            arg2="$1"
-
             if [ "$main_option" == "" ]; then
                 main_option="$option"
             else
@@ -319,7 +312,7 @@ shift $((OPTIND - 1))
 # ------------------------------------------------------------------
 
 # --- Locks --------------------------------------------------------
-LOCK_FILE=/tmp/$SUBJECT.lock
+LOCK_FILE=/tmp$SUBJECT.lock
 if [ -f "$LOCK_FILE" ]; then
 	echo "Script is already running"
 	exit
@@ -339,7 +332,7 @@ case "$main_option" in
         partition_disk "$arg1" "$arg2" "$arg3"
     ;;
     "m")
-        mount_parts "$arg1" "$arg2"
+        mount_parts "$arg1"
     ;;
     "n")
         configure_network "$arg1" "$arg2" "$arg3"
