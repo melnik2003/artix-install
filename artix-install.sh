@@ -1,8 +1,9 @@
 #!/bin/bash
 # ------------------------------------------------------------------
 # [Melnikov M.A.] Artix-OpenRC installation script
-# 1) Пришлось создать разделдиска самостоятельно
+# 1) Пришлось создать раздел диска /dev/sda# самостоятельно
 # 2) По-умолчанию пользователь не root
+# 3) wpa_supplicant не видит 5G сеть
 # ------------------------------------------------------------------
 
 # --- Global -------------------------------------------------------
@@ -110,7 +111,7 @@ partition_disk() {
     check_names
     #check_free_space
 
-    pvcreate "$disk_name"
+    pvcreate -ff "$disk_name"
 
     vgcreate "$group_name" "$disk_name"
 
