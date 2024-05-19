@@ -19,8 +19,20 @@ show_help() {
     echo -e "Usage: . ./$0.sh [-h] [-v]"
     echo -e ""
     echo -e "Options:"
-    echo -e "-h\t\t\tPrint this help"
-    echo -e "-v\t\t\tPrint script version"
+    echo -e "-h\t\t\t\tPrint this help"
+    echo -e "-v\t\t\t\tPrint script version"
+    echo -e "-p [part] [vg] [swap(0/1)]\tPartition disk"
+    echo -e "-m [vg]\t\t\t\tMount partitions"
+    echo -e "-n [interface] [ssid] [pass]\tConfigure network"
+    echo -e "-u\t\t\t\tUpdate clock"
+    echo -e "-b\t\t\t\tInstall base system and kernel"
+    echo -e "-f\t\t\t\tGenerate fstab"
+    echo -e "-c\t\t\t\tChroot into system"
+    echo -e "-C\t\t\t\tConfigure clock"
+    echo -e "-l\t\t\t\tConfigure localization"
+    echo -e "-g\t\t\t\tInstall grub"
+    echo -e "-U [username]\t\t\tConfigure users"
+    echo -e "-H [hostname]\t\t\tConfigure host"
 }
 
 check_error() {
@@ -47,23 +59,23 @@ show_logs() {
         "1")
             if [ $LOGGING_LEVEL -ge "$logging" ]; then
                 msg=$(check_error "$msg")
-                echo "\e[31m[ERROR]\e[0m $msg" >&2
+                echo -e "\e[31m[ERROR]\e[0m $msg" >&2
             fi
             exit 1
         ;;
         "2")
             if [ $LOGGING_LEVEL -ge "$logging" ]; then
-                echo "\e[33m[WARNING]\e[0m $msg"
+                echo -e "\e[33m[WARNING]\e[0m $msg"
             fi
         ;;
         "3")
             if [ $LOGGING_LEVEL -ge "$logging" ]; then
-                echo "\e[32m[INFO]\e[0m $msg"
+                echo -e "\e[32m[INFO]\e[0m $msg"
             fi
         ;;
         "4")
             if [ $LOGGING_LEVEL -ge "$logging" ]; then
-                echo "\e[34m[DEBUG]\e[0m $msg"
+                echo -e "\e[34m[DEBUG]\e[0m $msg"
             fi
         ;;
     esac
@@ -168,6 +180,40 @@ configure_network() {
     dhclient wlan0
 }
 
+update_clock() {
+    rc-service ntpd start
+}
+
+install_base() {
+    basestrap /mnt base base-devel openrc elogind-openrc
+    basestrap /mnt linux linux-firmware
+}
+
+generate_fstab() {
+    fstabgen -U /mnt >> /mnt/etc/fstab 
+}
+
+chroot() {
+     artix-chroot '/mnt # formerly artools-chroot'
+}
+
+configure_clock() {
+    ln -sf /usr/share/zoneinfo/Russia/Moscow /etc/localtime
+    hwclock --systohc
+}
+
+configure_localization() {
+    pacman -S nano
+    echo "Edit locale.gen file"
+    echo 'Use "nano /etc/locale.gen"'
+}
+
+install_grub() {
+    pacman -S grub os-prober efibootmgr
+    grub-install --recheck /dev/sda
+    grub-mkconfig -o /boot/grub/grub.cfg
+}
+
 configure_user() {
     local username="$1"
 
@@ -201,27 +247,64 @@ fi
 
 main_option=""
 
-while getopts ":vhp:m:n:u:H:" option
+check_main() {
+    local main=$1
+
+    if [ $main -eq 1 ]; then
+        if [ "$main_option" == "" ]; then
+            main_option="$option"
+        else
+            show_logs 1 "mainOpt"
+        fi
+    fi
+
+    case $args_amount in
+        0)
+            :
+        ;;
+        1)
+            arg1="$OPTARG"
+        ;;
+        2)
+            arg1="$OPTARG"
+
+            shift $((OPTIND - 1))
+            if [[ $1 == -* ]]; then
+                show_logs 1 "Option -$option requires 2 arguments"
+            fi
+            arg2="$1"
+        ;;
+        3)
+            arg1="$OPTARG"
+
+            shift $((OPTIND - 1))
+            if [[ $1 == -* ]]; then
+                show_logs 1 "Option -$option requires 3 arguments"
+            fi
+            arg2="$1"
+
+            shift $((OPTIND - 1))
+            if [[ $2 == -* ]]; then
+                show_logs 1 "Option -$option requires 3 arguments"
+            fi
+            arg3="$2"
+        ;;
+    esac
+}
+
+while getopts ":vhp:m:n:ubfcClgU:H:" option
 do
 	case "$option" in
 		"v")
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            check_main 1
 
 			echo "Version $VERSION"
 			exit 0;
 		;;
 		"h")
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            check_main 1
 
-			echo "$USAGE"
+            show_help
 			exit 0;
 		;;
         "p")
@@ -229,69 +312,81 @@ do
 
             shift $((OPTIND - 1))
             if [[ $1 == -* ]]; then
-                show_logs 1 "Option -p requires 3 arguments"
+                show_logs 1 "Option -$option requires 3 arguments"
             fi
             arg2="$1"
 
             shift $((OPTIND - 1))
             if [[ $2 == -* ]]; then
-                show_logs 1 "Option -p requires 3 arguments"
+                show_logs 1 "Option -$option requires 3 arguments"
             fi
             arg3="$2"
-
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            
+            check_main 3 1
 		;;
         "m")
             arg1="$OPTARG"
 
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
+            shift $((OPTIND - 1))
+            if [[ $1 == -* ]]; then
+                show_logs 1 "Option -$option requires 2 arguments"
             fi
+            arg2="$1"
+
+            check_main 1
         ;;
         "n")
             arg1="$OPTARG"
 
             shift $((OPTIND - 1))
             if [[ $1 == -* ]]; then
-                show_logs 1 "Option -p requires 3 arguments"
+                show_logs 1 "Option -$option requires 3 arguments"
             fi
             arg2="$1"
 
             shift $((OPTIND - 1))
             if [[ $2 == -* ]]; then
-                show_logs 1 "Option -p requires 3 arguments"
+                show_logs 1 "Option -$option requires 3 arguments"
             fi
             arg3="$2"
 
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            check_main 1
         ;;
         "u")
+            check_main 1
+            :
+        ;;
+        "b")
+            check_main 1
+            :
+        ;;
+        "f")
+            check_main 1
+            :
+        ;;
+        "c")
+            check_main 1
+            :
+        ;;
+        "C")
+            check_main 1
+            :
+        ;;
+        "l")
+            check_main 1
+            :
+        ;;
+        "g")
+            check_main 1
+            :
+        ;;
+        "U")
             arg1="$OPTARG"
-            
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            check_main 1
         ;;
         "H")
             arg1="$OPTARG"
-            
-            if [ "$main_option" == "" ]; then
-                main_option="$option"
-            else
-                show_logs 1 "mainOpt"
-            fi
+            check_main 1
         ;;
 		"?")
 			echo "Unknown option $OPTARG"
@@ -311,17 +406,6 @@ done
 shift $((OPTIND - 1))
 # ------------------------------------------------------------------
 
-# --- Locks --------------------------------------------------------
-LOCK_FILE=/tmp$SUBJECT.lock
-if [ -f "$LOCK_FILE" ]; then
-	echo "Script is already running"
-	exit
-fi
-
-trap 'rm -f $LOCK_FILE' EXIT
-touch "$LOCK_FILE"
-# ------------------------------------------------------------------
-
 # --- Body ---------------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
     show_logs 1 "root"
@@ -338,10 +422,31 @@ case "$main_option" in
         configure_network "$arg1" "$arg2" "$arg3"
     ;;
     "u")
+        update_clock
+    ;;
+    "b")
+        install_base
+    ;;
+    "f")
+        generate_fstab
+    ;;
+    "c")
+        chroot
+    ;;
+    "C")
+        configure_clock
+    ;;
+    "l")
+        configure_localization
+    ;;
+    "g")
+        install_grub
+    ;;
+    "U")
         configure_user "$arg1"
     ;;
     "H")
         configure_host "$arg1"
     ;;
-esac
+esac 
 # ------------------------------------------------------------------
